@@ -28,7 +28,7 @@ pdf(
 )
 
 
-reconstruction<-read.csv("/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/RECONSTRUCTIONS_1519_b.csv",sep=";")
+reconstruction<-read.csv("/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/RECONSTRUCTIONS_1519_b.csv",sep=";", encoding = "latin")
 finess<-read.csv("/Users/zoefontier/Desktop/04.93/01.Data/finess_geo.csv", sep=";")
 
 finess<-finess%>%
@@ -53,7 +53,7 @@ reconstruction%>%
 
 ##### 1.3 Merge avec les établissements #####
 reconstruction<-reconstruction%>%
-  inner_join(finess %>% select(categ_pmsi, finessGeo, secteur_pmsi, rs, latitude, longitude, adresse), by=c("finessGeoDP"="finessGeo"))
+  inner_join(finess %>% select(categ_pmsi, finessGeo, secteur_pmsi, rs, latitude, longitude, adresse, ville), by=c("finessGeoDP"="finessGeo"))
 
 reconstruction%>%
   group_by(rs)%>%
@@ -116,7 +116,7 @@ reconstruction %>%
   ggplot(aes(x=cum_patients, y=cum_etab)) +
   geom_line()+
   theme_light()+
-  labs(title="Rrpartition des patientes dans les établissements", x="Effectif cumulé du nombre de patients", y="Effectif cumulé du nombre d'établissements")
+  labs(title="Répartition des patientes dans les établissements", x="Effectif cumulé du nombre de patients", y="Effectif cumulé du nombre d'établissements")
 #on regarde le nombre total de patientes qui se rendent dans des structures qui font peu d'opérations de chirurgie reconstructrice
 #la moitié des patientes se repartissent entre 550 strutures, et 'autres moitié dans une 50aine.
 
@@ -133,6 +133,8 @@ arrange(total_patients)%>%
 labs(title="Courbe de Lorenz du Nombre de patients par établissements", x="Pourcentage cumulé du nombre de patients", y="Pourcentage cumulé du nombre d'établissements")
 #on regarde le nombre total de patientes qui se rendent dans des structures qui font peu d'opérations de chirurgie reconstructrice
 #50% des patients vont vers 10% des etbalissements
+
+
 #### 2. Répartition des actes - Stat ####
 ##### 2.2 regroupement des actes #####
 #on regroupe des actes qui sont similaires
@@ -167,7 +169,7 @@ reconstruction<-reconstruction%>%
 ##### 2.3 Repartition des actes #####
 
 #repartition du volume d'actes dans les hopitaux par techniques
-#graphe de répartition de l'offre de soins par type d'actes (en fonction du nombres d'actes totals par structures)
+#graphe de répartition de l'offre de soins par type d'actes (en fonction du nombres d'actes total par structures)
 
 t<-reconstruction%>%
   group_by(year,acte)%>%
@@ -1438,216 +1440,9 @@ for(i in 109:){
 
 dev.off()
 
-##### 5.Mesure de la diversité de l'activité #####
-#exclusion de l'acte de dedoublement du sein
-#on garde les reconstruction de la plaque aréolo mammelonnaire, prise en charge complète
-#on prend l'activité de 2019
-
-diversite<-reconstruction%>%
-  filter(year=="2019", acte!="dedoublement du sein restant", .keep.all=TRUE)%>%
-  group_by(rs, categ_pmsi)%>%
-  mutate(total=sum(n_patients))%>%
-  group_by(rs,acte)%>%
-  mutate(n= sum(n_patients), ratio=(n/total)*100)
+#suite du preprocessing de la base de données dans code suivant. 
 
 
-
-require(reshape2)
-#table avec pourcentage
-diversite<-dcast(diversite, rs + categ_pmsi ~ acte, mean, value.var="ratio", fill=0)
-diversite<-melt(diversite, id=c("rs", "categ_pmsi"), na.rm=TRUE) 
-
-#on a ajouter les 0, pour les actes qui n'apparaissaient pas
-#on a une table avec des poucentage d'activité, même pour les activités nulles
-
-#On va construire un indicateur qui calcule la moyenne des distances entre les pourcentage (concentration) et qui est pondéré par le nombre total
-# de type d'activité pratiquées
-# on discrimine les etablissements spécialisés
-# mais aussi ceux dont la répartition des activités est très hétérogène
-# plus ce score est elevé moins l'établissement a une activité diversifiée
-
-#on récupère les indicatrices pour faire un score de 1 à 8 qui permet de voir combien de type d'actes sont effectués par l'établissement
-d<-reconstruction%>%
-  group_by(acte, year, rs, categ_pmsi, latitude, longitude)%>%
-  summarise(total=sum(n_patients))%>%
-  filter(year=="2019", acte!="dedoublement du sein restant", .keep_all=TRUE)%>%
-  select(rs,acte,total, categ_pmsi)
-
-require(reshape2)
-d<-dcast(d, rs +categ_pmsi ~ acte, value.var = "total") #on récupère les indicatrices
+write.csv(reconstruction, "/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/reconstruction_v0.csv", row.names=FALSE)
 
 
-summary(d)
-# On calcul un score (somme des indicatrices) et on corrige le beug pour la CLINIQUE DU PARC
-d<-d%>%
-  mutate(score = rowSums(across(where(is.numeric))))%>%
-  mutate(score = replace(score, score == 14, 5))
-  
-table(d$score)
-#dispersion cohérente
-
-#on merge la table avec les pourcentages et celle avec le score, pour préparer les variables pour la diversité effective
-diversite<-diversite%>%
-  inner_join(d %>% select(rs, score), by=c("rs"="rs"))%>%
-  group_by(rs)%>%
-  arrange(value, .by_group = TRUE) #on trie par ordre decroissant de pourcentage
-
-
-# #on calcule le score de diversité avec les ecarts de pourcentage et la pondération par l'inverse du score
-# DIV<- data.table(diversite)
-# DIV<-DIV[ , list(rs,categ_pmsi, variable,score, value,Diff=diff(value))] #calcul des différences entre les lignes
-# DIV$Diff[which(DIV$Diff<0)]<-0
-# 
-# DIV<-DIV%>%
-#   group_by(rs)%>%
-#  mutate(mean_diff=if_else(score!=1, sum(Diff)/(score-1), 100), score_div=mean_diff*(1/score))%>%
-#   distinct(rs, .keep_all=TRUE)
-# 
-# 
-# DIV%>%
-#   ggplot(aes(x=score_div,fill=categ_pmsi))+
-#   geom_histogram(binwidth = 1)+
-#   theme_light()+
-#   scale_fill_manual(values=COLOR_PMSI, name="Type d'établissement") +
-#   labs(title="Répartition des score de diversité", 
-#        x="Score de diversité", y="Nombre de structures" )
-# 
-# 
-# DIV%>%
-#   ggplot(aes(x=score,fill=categ_pmsi))+
-#   geom_histogram(binwidth = 1)+
-#   theme_light()+
-#   scale_fill_manual(values=COLOR_PMSI, name="Type d'établissement") +
-#   labs(title="Répartition du nombre d'activités pratiquées", 
-#        x="Score de diversité", y="Nombre de structures" )
-# 
-# 
-# DIV%>%
-#   mutate(score_1=as.character(score))%>%
-#   ggplot(aes(x=score_div,fill=score_1))+
-#   geom_histogram(binwidth = 1)+
-#   theme_light()+
-#   scale_fill_brewer(palette="Set3", name="Nombre de types d'actes pratiqués")+
-#   labs(title="Répartition des score de diversité", 
-#        x="Score de diversité", y="Nombre de structures" )
-# 
-# 
-
-##### indice de diversite ######
-
-d<-diversite%>%
-  group_by(rs)%>%
-  mutate(sc_diversite=1/sum((value/100)^2))
-
-d%>%group_by(rs)%>%
-  distinct(rs, .keep_all=TRUE)%>%
-  ggplot(aes(x=sc_diversite, fill=as.character(score)))+
-  geom_histogram(binwidth = 0.5)+
-  theme_light()+
-  scale_fill_brewer(palette="Set3", name="Nombre de types d'actes pratiqués")+
-  labs(title="Répartition des score de diversité", 
-       x="Score de diversité", y="Nombre de structures" )
-  
-  
-
-d%>%group_by(rs)%>%
-  distinct(rs, .keep_all = TRUE)%>%
-  ggplot(aes(x=sc_diversite,fill=categ_pmsi))+
-  geom_histogram()+
-  theme_light()+
-  scale_fill_manual(values=COLOR_PMSI, name="Type d'établissement") +
-  labs(title="Répartition du nombre d'activités pratiquées, en diversité effective", 
-       x="Score de diversité", y="Nombre de structures" )
-
-#### evolution de l'activite au cours des 5 années
-
-
-t<- reconstruction%>%
-  filter(year=="2019" | year=="2015", .keep_all=TRUE)%>%
-  group_by(rs,year)%>%
-  mutate(n=sum(n_patients))%>%
-  mutate(n_2015=ifelse(year=="2015",n,0), n_2019=ifelse(year=="2019",n,0))
-
-t<-t%>%
-  group_by(rs, year)%>%
-  distinct(rs,year, .keep_all=TRUE)
-
-t<-t%>%
-  group_by(rs)%>%
-  mutate(occur=n())%>%
-  mutate(var =ifelse(occur==2, n[year =="2019"] - n[year=="2015"], 0), variation=ifelse(occur==2, var/n[year=="2015"], 0))
- 
-
- t%>%
-   filter(year=="2019", .keep_all=TRUE)%>%
-   #summary(t$variation)
-   ggplot(aes(x=variation,fill=categ_pmsi))+
-   geom_histogram(binwidth=0.05)+
-   theme_light()+
-   scale_fill_manual(values=COLOR_PMSI, name="Type d'établissement") +
-   labs(title="Répartition de la variation du taux d'activité entre 2015 et 2019", 
-        x="ariation du taux d'activité", y="Nombre de structures" )
-   
-  
-t<-table1(~ volume + sc_diversite |categ_pmsi, 
-       data=d,topclass="Rtable1-zebra", caption= "Distribution of variable used for the total score (1b)", footnote="Data: PMSI")
-
-# resultats estatis pour la satisfaction des patients pour l'établissement
-
-estatis<-read.csv("/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/resultats-esatisca-mco-open-data-2019.csv", 
-                  colClasses= c("score_all_ajust"="numeric"), dec=",", sep=";")
-
-
-reconstruction<-reconstruction%>%
-  inner_join(estatis %>% select(finess_geo, score_all_ajust, classement), by=c("finessGeoDP"="finess_geo"))
-
-summary(reconstruction)
-########### Creation de la table pour l'algo ############
-
-# bdd_finale<-reconstruction%>%
-#   filter(year=="2019", .keep_all=TRUE)%>%
-#   group_by(rs)%>%
-#   mutate(volume=sum(n_patients))%>%
-#   inner_join(DIV%>% select (rs,score_div ), by=c("rs"="rs"))%>%
-#   select(rs, latitude, longitude,categ_pmsi,volume, score_div, acte, adresse)
-
-bdd_finale<-reconstruction%>%
-    filter(year=="2019",acte!="dedoublement du sein restant", .keep_all=TRUE)%>%
-    group_by(rs)%>%
-    mutate(volume=sum(n_patients))%>%
-    distinct(rs, acte, .keep_all=TRUE)%>% 
-    inner_join(d%>% select (rs,variable,sc_diversite), by=c("rs"="rs", "acte"="variable"))%>%
-    inner_join(t%>% filter(year=="2019") %>% select(rs, variation) , by=c("rs"="rs"))%>%
-    select(finessGeoDP, rs, latitude, longitude,categ_pmsi,volume, variation,sc_diversite, score_all_ajust, acte, adresse)
-
-
-dummy<-bdd_finale%>%
-  dcast(bdd_finale,  rs  ~ acte, length)
-
-
-bdd_finale<-dummy%>%
-  inner_join(bdd_finale%>%distinct(rs, .keep_all=TRUE) %>% select(volume, variation,sc_diversite, score_all_ajust, adresse, finessGeoDP, rs, latitude, longitude,categ_pmsi)
-             , by=c("rs"="rs"))
- 
-
-
-write.csv(bdd_finale, "/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/bdd_finale.csv", row.names=FALSE)
-  
-bdd_finale<-as.data.frame(bdd_finale)
-summarise(bdd_finale)
-
-finess_reco<-bdd_finale[,1:2]
-write.csv(finess_reco, "/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/finess_reco.csv", row.names=FALSE)
-
-##### Stats sur les indicateurs: sa cohérence avec le volume ####
-
-bdd_finale%>%
-  filter(volume>50, .keep_all=TRUE)%>%
-  ggplot(aes(x=sc_diversite,fill=categ_pmsi))+
-  geom_histogram()+
-  theme_light()+
-  scale_fill_manual(values=COLOR_PMSI, name="Type d'établissement") +
-  labs(title="Répartition du nombre d'activités pratiquées, en diversité effective", 
-       x="Score de diversité", y="Nombre de structures" )
-
-summary(bdd_finale)
