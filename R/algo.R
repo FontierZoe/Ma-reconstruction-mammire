@@ -42,17 +42,18 @@ diversite<-reconstruction%>%
 require(reshape2)
 #table avec pourcentage
 diversite<-dcast(diversite, rs + categ_pmsi ~ acte, mean, value.var="ratio", fill=0)
-diversite<-melt(diversite, id=c("rs", "categ_pmsi"), na.rm=TRUE) 
-
 #on a ajouté les 0, pour les actes qui n'apparaissaient pas
 #on a une table avec des poucentage d'activité, même pour les activités nulles
+diversite<-melt(diversite, id=c("rs", "categ_pmsi"), na.rm=TRUE) 
 
-#On va construire un indicateur qui calcule la moyenne des distances entre les pourcentages (concentration) et qui est pondéré 
-#par le nombre total de type d'activité pratiquées
-# on discrimine les etablissements spécialisés
-# mais aussi ceux dont la répartition des activités est très hétérogène
-# plus ce score est elevé moins l'établissement a une activité diversifiée
+#calcul du score de diversité
+diversite<-diversite%>%
+  group_by(rs)%>%
+  mutate(sc_diversite=1/sum((value/100)^2))
 
+
+
+#vérification
 #on récupère les indicatrices pour faire un score de 1 à 8 qui permet de voir combien de type d'actes 
 #sont effectués par l'établissement
 
@@ -64,7 +65,6 @@ d<-reconstruction%>%
 
 require(reshape2)
 dummy<-dcast(d, rs +categ_pmsi ~ acte, value.var = "total") #on récupère les indicatrices
-
 
 summary(dummy)
 # On calcul un score (somme des indicatrices) et on corrige le beug pour la CLINIQUE DU PARC
@@ -82,12 +82,8 @@ diversite<-diversite%>%
   group_by(rs)%>%
   arrange(value, .by_group = TRUE) #on trie par ordre decroissant de pourcentage
 
-#calcul du score de diversité
-d<-diversite%>%
-  group_by(rs)%>%
-  mutate(sc_diversite=1/sum((value/100)^2))
-
-d%>%group_by(rs)%>%
+#on fait la vérif score de diversité/nb total d'acte différents pratiqués
+diversite%>%group_by(rs)%>%
   distinct(rs, .keep_all=TRUE)%>%
   ggplot(aes(x=sc_diversite, fill=as.character(score)))+
   geom_histogram(binwidth = 0.5)+
@@ -98,7 +94,7 @@ d%>%group_by(rs)%>%
 
 
 
-d%>%group_by(rs)%>%
+diversite%>%group_by(rs)%>%
   distinct(rs, .keep_all = TRUE)%>%
   ggplot(aes(x=sc_diversite,fill=categ_pmsi))+
   geom_histogram()+
@@ -158,7 +154,7 @@ bdd_finale<-reconstruction%>%
   group_by(rs)%>%
   mutate(volume=sum(n_patients))%>%
   distinct(rs, acte, .keep_all=TRUE)%>% 
-  inner_join(d%>% select (rs,variable,sc_diversite), by=c("rs"="rs", "acte"="variable"))%>%
+  inner_join(diversite%>% select (rs,variable,sc_diversite), by=c("rs"="rs", "acte"="variable"))%>%
   inner_join(t%>% filter(year=="2019") %>% select(rs, variation) , by=c("rs"="rs"))%>%
   select(finessGeoDP, rs, latitude, longitude,categ_pmsi,volume, variation,sc_diversite, score_all_ajust, acte, adresse, ville)
 
