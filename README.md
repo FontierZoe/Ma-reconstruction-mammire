@@ -2,7 +2,7 @@
 
 ## Les bases de données importantes
 #### Bases initiales
-- RECONSTRUCTIONS_1519.csv : données issues du PMSI des actes de reconstruction entre 2015 et 2019 en France
+- RECONSTRUCTIONS_1519_b.csv : données issues du PMSI des actes de reconstruction entre 2015 et 2019 en France
 - distance.csv: bases de données distances établissements/code_communes récupérées par Capgemini
 - laposte_hexasmal.csv :base de conversion code_postal/ code_commune
 - resultats-esatisca-mco-open-data-2019.csv: indice de qualité des soins en open data depuis la HAS
