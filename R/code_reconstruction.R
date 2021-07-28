@@ -28,7 +28,7 @@ pdf(
 )
 
 
-reconstruction<-read.csv("/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/RECONSTRUCTIONS_1519_b.csv",sep=";", encoding = "latin")
+reconstruction<-read.csv("/Users/zoefontier/Desktop/01.Chirurgie reconstructive/01.data/ma-reconstruction-mammaire/data/RECONSTRUCTIONS_1519_b.csv",sep=";", encoding = "latin")
 finess<-read.csv("/Users/zoefontier/Desktop/04.93/01.Data/finess_geo.csv", sep=";")
 
 finess<-finess%>%
